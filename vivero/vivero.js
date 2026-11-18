@@ -86,8 +86,9 @@ function ponerHora(h, conEntorno = true) {
   const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
   $('horaTxt').textContent = `${hh}:${String(mm).padStart(2, '0')}`;
 }
-$('hora').addEventListener('input', (e) => ponerHora(+e.target.value, false));
-$('hora').addEventListener('change', (e) => ponerHora(+e.target.value, true));
+let horaActual = +$('hora').value;
+$('hora').addEventListener('input', (e) => { horaActual = +e.target.value; ponerHora(horaActual, false); });
+$('hora').addEventListener('change', (e) => { horaActual = +e.target.value; ponerHora(horaActual, true); });
 
 // ───────────────────────── texturas dibujadas (sin imágenes) ─────────────────────────
 let semilla = 7;
@@ -418,7 +419,7 @@ for (const c of D.camas) {
   scene.add(p);
 }
 
-// ───────────────────────── cifras ─────────────────────────
+// ───────────────────────── cifras (barra derecha) ─────────────────────────
 const fmt = (n) => n.toLocaleString('es-CO');
 const redondo = (n, a) => Math.round(n / a) * a;
 const cifras = [
@@ -430,65 +431,157 @@ const cifras = [
   [`~${fmt(redondo(totalPlantas, 1000))}`, 'plántulas en mesa'],
 ];
 $('cifras').innerHTML = cifras.map(([v, k]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
+const angosto = () => innerWidth <= 820;
+if (angosto()) $('panel').classList.add('oculto');
 $('btnInfo').addEventListener('click', () => {
-  const ab = $('panel').classList.toggle('oculto');
-  $('btnInfo').setAttribute('aria-expanded', String(!ab));
+  const oculto = $('panel').classList.toggle('oculto');
+  $('btnInfo').setAttribute('aria-expanded', String(!oculto));
+  if (!oculto) cerrarInfo();
 });
-if (!movil) { $('panel').classList.remove('oculto'); $('btnInfo').setAttribute('aria-expanded', 'true'); }
+
+// hora con reproducción: 10 s reales por cada hora
+let reproduciendo = false, ultimoCuarto = -1;
+function ponerPlay(on) {
+  reproduciendo = on;
+  $('play').setAttribute('aria-pressed', String(on));
+  $('play').setAttribute('aria-label', on ? 'Pausar' : 'Reproducir el paso de las horas');
+  $('icoPlay').hidden = on; $('icoPausa').hidden = !on;
+}
+$('play').addEventListener('click', () => ponerPlay(!reproduciendo));
+function avanzarHora(dt) {
+  let h = horaActual + dt / 10;
+  if (h > 18) h = 6;
+  horaActual = h;
+  $('hora').value = h;
+  const cuarto = Math.floor(h * 4);          // el reflejo del cielo se recalcula cada 15 min
+  ponerHora(h, cuarto !== ultimoCuarto);
+  ultimoCuarto = cuarto;
+}
 
 // ───────────────────────── puntos de información ─────────────────────────
 const AN = D.ancho_nave, LG = D.largo;
+const xc = (n) => AN * (n - 0.5);   // centro de la nave n
 const PUNTOS = [
-  { p: [AN * 1.5, D.h_cumbre + 0.15, -LG * 0.35], t: 'Polisombra',
-    d: 'Dos capas: la malla en arco por fuera y una malla plana por dentro. Bajan la luz directa para que las plántulas no se quemen.' },
-  { p: [AN * 0.5 + 1.2, 1.35, -8], t: 'Mesas de crecimiento',
-    d: 'Mesas metálicas a unos 80 cm del suelo con bandejas de alvéolos. La raíz queda al aire por debajo y no se enrolla.' },
-  { p: [AN * 3 + 6.1, 1.3, -6], t: 'Camas de germinación',
-    d: 'Cajones de madera con sustrato donde germina la semilla. Con las primeras hojas, la plántula pasa a las bandejas.' },
+  { p: [xc(2), D.h_cumbre + 0.15, -LG * 0.35], t: 'Polisombra',
+    d: 'Dos capas: la malla en arco por fuera y una malla plana por dentro. Bajan la luz directa para que las plántulas no se quemen.',
+    cam: [xc(2) + 10, 9, -LG * 0.35 + 12] },
+  { p: [xc(1) + 1.2, 1.35, -8], t: 'Mesas de crecimiento',
+    d: 'Mesas metálicas a unos 80 cm del suelo con bandejas de alvéolos. La raíz queda al aire por debajo y no se enrolla.',
+    cam: [xc(1) - 0.1, 1.75, -3.2] },
+  { p: [xc(4) + 2.1, 1.3, -6], t: 'Camas de germinación',
+    d: 'Cajones de madera con sustrato donde germina la semilla. Con las primeras hojas, la plántula pasa a las bandejas.',
+    cam: [xc(4) + 0.2, 1.8, -1.2] },
   { p: [AN + 1.0, 0.65, -1.2], t: 'Riego',
-    d: 'Tubo PVC al pie de cada hilera, con su llave a la entrada, y manguera para regar a mano.' },
-  { p: [8, 3.9, -(LG + 5)], t: 'Zona de trabajo',
-    d: 'Bodegas y cobertizos detrás de las naves, junto a la casa.' },
+    d: 'Tubo PVC al pie de cada hilera, con su llave a la entrada, y manguera para regar a mano.',
+    cam: [AN + 2.6, 1.5, 1.6] },
+  { p: [8, 2.6, -(LG + 4)], t: 'Zona de trabajo',
+    d: 'Bodegas y cobertizos detrás de las naves, junto a la casa.',
+    cam: [22, 8, -(LG - 10)] },
 ];
-const ficha = $('ficha');
-let puntoActivo = null;
+PUNTOS.forEach((pt) => { pt.v = new THREE.Vector3(...pt.p); });
 const elPuntos = PUNTOS.map((pt, i) => {
   const b = document.createElement('button');
   b.className = 'punto'; b.textContent = i + 1; b.title = pt.t;
-  b.addEventListener('click', (e) => { e.stopPropagation(); abrirFicha(i); });
+  b.addEventListener('click', (e) => { e.stopPropagation(); abrirInfo(i); });
   $('puntos').appendChild(b);
-  pt.v = new THREE.Vector3(...pt.p);
   return b;
 });
-function abrirFicha(i) {
-  puntoActivo = i;
+$('indice').innerHTML = PUNTOS.map((pt, i) => `<li><button data-i="${i}"><i>${i + 1}</i>${pt.t}</button></li>`).join('');
+$('indice').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) abrirInfo(+b.dataset.i); });
+
+// barra izquierda (vistas libres)
+let puntoInfo = null;
+function abrirInfo(i) {
+  puntoInfo = i;
+  const pt = PUNTOS[i];
+  $('infoN').textContent = `Punto ${i + 1} de ${PUNTOS.length}`;
+  $('infoT').textContent = pt.t; $('infoP').textContent = pt.d;
+  $('info').classList.remove('cerrada'); $('info').setAttribute('aria-hidden', 'false');
   elPuntos.forEach((b, k) => b.classList.toggle('activo', k === i));
-  $('fichaT').textContent = PUNTOS[i].t; $('fichaP').textContent = PUNTOS[i].d;
-  ficha.hidden = false;
+  $('indice').querySelectorAll('button').forEach((b, k) => b.setAttribute('aria-current', String(k === i)));
+  if (angosto()) { $('panel').classList.add('oculto'); $('btnInfo').setAttribute('aria-expanded', 'false'); }
 }
-function cerrarFicha() { puntoActivo = null; ficha.hidden = true; elPuntos.forEach((b) => b.classList.remove('activo')); }
-$('fichaCerrar').addEventListener('click', cerrarFicha);
+function cerrarInfo() {
+  puntoInfo = null;
+  $('info').classList.add('cerrada'); $('info').setAttribute('aria-hidden', 'true');
+  elPuntos.forEach((b) => b.classList.remove('activo'));
+}
+$('infoCerrar').addEventListener('click', cerrarInfo);
+$('infoAcercar').addEventListener('click', () => {
+  if (puntoInfo === null) return;
+  document.querySelectorAll('[data-vista]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+  volar(PUNTOS[puntoInfo].cam, PUNTOS[puntoInfo].p);
+});
+
+// pop-up del modo caminar: el número se activa al estar cerca y mirarlo
+const popup = $('popup');
+const vistos = new Set();
+let puntoCam = null;
+const CERCA = 6, CERCA_SALIR = 7.5;
+const MIRA = Math.cos(THREE.MathUtils.degToRad(22)), MIRA_SALIR = Math.cos(THREE.MathUtils.degToRad(34));
+const frente = new THREE.Vector3(), haciaPunto = new THREE.Vector3();
+function mirada(pt) {
+  haciaPunto.copy(pt.v).sub(camera.position);
+  const d = haciaPunto.length();
+  return { d, dot: haciaPunto.divideScalar(d || 1).dot(frente) };
+}
+function revisarCercania() {
+  camera.getWorldDirection(frente);
+  if (puntoCam !== null) {
+    const m = mirada(PUNTOS[puntoCam]);
+    if (m.d > CERCA_SALIR || m.dot < MIRA_SALIR) soltarPunto();
+  }
+  if (puntoCam === null) {
+    let mejor = null, mejorDot = MIRA;
+    PUNTOS.forEach((pt, i) => { const m = mirada(pt); if (m.d < CERCA && m.dot > mejorDot) { mejor = i; mejorDot = m.dot; } });
+    if (mejor !== null) activarPunto(mejor);
+  }
+}
+function activarPunto(i) {
+  puntoCam = i;
+  $('popupT').textContent = `${i + 1}. ${PUNTOS[i].t}`; $('popupP').textContent = PUNTOS[i].d;
+  popup.classList.add('on');
+  elPuntos.forEach((b, k) => b.classList.toggle('activo', k === i));
+  if (!vistos.has(i)) {
+    vistos.add(i);
+    elPuntos[i].classList.add('visto');
+    $('logroN').textContent = vistos.size === PUNTOS.length ? `los ${PUNTOS.length}` : `${vistos.size} de ${PUNTOS.length}`;
+  }
+}
+function soltarPunto() {
+  puntoCam = null;
+  popup.classList.remove('on');
+  elPuntos.forEach((b) => b.classList.remove('activo'));
+}
 
 const vtmp = new THREE.Vector3();
 function moverPuntos() {
   const w = innerWidth, h = innerHeight;
+  if (caminando) revisarCercania();
   PUNTOS.forEach((pt, i) => {
     vtmp.copy(pt.v).project(camera);
     const dist = camera.position.distanceTo(pt.v);
-    const fuera = vtmp.z > 1 || Math.abs(vtmp.x) > 1.05 || Math.abs(vtmp.y) > 1.05 || dist > 140 || dist < 0.8;
+    const lejos = caminando ? dist > 11 : (dist > 140 || dist < 0.8);
+    const fuera = vtmp.z > 1 || Math.abs(vtmp.x) > 1.05 || Math.abs(vtmp.y) > 1.05 || lejos;
     const el = elPuntos[i];
     el.classList.toggle('lejos', fuera);
     if (fuera) return;
     const x = (vtmp.x + 1) / 2 * w, y = (1 - vtmp.y) / 2 * h;
     el.style.transform = `translate(${x}px, ${y}px)`;
-    if (i === puntoActivo && innerWidth > 760) {
-      ficha.style.left = `${Math.min(w - 290, x + 22)}px`; ficha.style.top = `${Math.max(70, y - 30)}px`;
+    if (caminando && i === puntoCam) {
+      const pw = popup.offsetWidth || 260, ph = popup.offsetHeight || 110;
+      const panel = $('panel');
+      const borde = panel.classList.contains('oculto') || angosto() ? w - 16 : panel.getBoundingClientRect().left - 12;
+      let px = x + 26, origen = 'left center';
+      if (px + pw > borde) { px = x - 26 - pw; origen = 'right center'; }
+      px = Math.max(16, px);
+      const py = THREE.MathUtils.clamp(y - ph / 2, 76, Math.max(76, h - ph - 150));
+      popup.style.left = `${px}px`; popup.style.top = `${py}px`; popup.style.transformOrigin = origen;
     }
   });
 }
 
 // ───────────────────────── vistas ─────────────────────────
-const xc = (n) => AN * (n - 0.5);   // centro de la nave n
 const VISTAS = {
   aerea: { pos: [64, 34, 26], obj: [16, 0, -18] },
   entrada: { pos: [xc(2) + 2.5, 1.7, 7], obj: [xc(2), 1.6, -6] },
@@ -501,10 +594,14 @@ function irA(nombre) {
   salirCaminar();
   const v = VISTAS[nombre];
   document.querySelectorAll('[data-vista]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.vista === nombre)));
-  anim = { t0: performance.now(), dur: 1400,
-    p0: camera.position.clone(), p1: new THREE.Vector3(...v.pos),
-    o0: controls.target.clone(), o1: new THREE.Vector3(...v.obj) };
+  volar(v.pos, v.obj);
   ayuda();
+}
+function volar(pos, obj) {
+  salirCaminar();
+  anim = { t0: performance.now(), dur: 1400,
+    p0: camera.position.clone(), p1: new THREE.Vector3(...pos),
+    o0: controls.target.clone(), o1: new THREE.Vector3(...obj) };
 }
 document.querySelectorAll('[data-vista]').forEach((b) => b.addEventListener('click', () => irA(b.dataset.vista)));
 controls.addEventListener('start', () => { anim = null; });
@@ -536,7 +633,9 @@ function entrarCaminar() {
   $('btnCaminar').setAttribute('aria-pressed', 'true');
   document.querySelectorAll('[data-vista]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
   $('palanca').classList.toggle('on', movil);
-  if (movil) cerrarFicha();
+  cerrarInfo();
+  document.body.classList.add('caminando');
+  $('logro').hidden = false;
   ayuda();
 }
 function salirCaminar() {
@@ -546,6 +645,9 @@ function salirCaminar() {
   controls.target.copy(camera.position).addScaledVector(f, 3).setY(1.2);
   $('btnCaminar').setAttribute('aria-pressed', 'false');
   $('palanca').classList.remove('on');
+  soltarPunto();
+  document.body.classList.remove('caminando');
+  $('logro').hidden = true;
   ayuda();
 }
 $('btnCaminar').addEventListener('click', () => (caminando ? salirCaminar() : entrarCaminar()));
@@ -617,7 +719,7 @@ function pasoCaminar(dt) {
 
 function ayuda() {
   $('ayuda').textContent = caminando
-    ? (movil ? 'Mueve el círculo para caminar · arrastra para mirar' : 'W A S D o flechas para caminar · Shift corre · arrastra para mirar')
+    ? (movil ? 'Mueve el círculo · acércate a los números y míralos' : 'W A S D o flechas para caminar · Shift corre · arrastra para mirar · acércate a los números y míralos')
     : (movil ? 'Un dedo gira · dos dedos acercan y mueven · toca los números' : 'Arrastra para girar · rueda para acercar · clic derecho para mover · clic en los números');
 }
 
@@ -630,6 +732,7 @@ const suave = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 const reloj = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   const dt = Math.min(0.05, reloj.getDelta());
+  if (reproduciendo) avanzarHora(dt);
   if (caminando) pasoCaminar(dt);
   else {
     if (anim) {
@@ -648,4 +751,4 @@ ponerHora(+$('hora').value);
 ayuda();
 progreso(1);
 setTimeout(() => { carga.classList.add('fin'); setTimeout(() => carga.remove(), 700); }, 60);
-window.__vivero = { scene, camera, controls, irA, D, totalPlantas, bandejas: bandejas.length, pasoCaminar, teclas, jugador };
+window.__vivero = { scene, camera, controls, irA, D, totalPlantas, bandejas: bandejas.length, pasoCaminar, teclas, jugador, avanzarHora, moverPuntos, PUNTOS, ponerPlay };
