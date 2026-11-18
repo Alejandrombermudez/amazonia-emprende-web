@@ -462,23 +462,34 @@ function avanzarHora(dt) {
 // ───────────────────────── puntos (en el orden del recorrido) ─────────────────────────
 const AN = D.ancho_nave, LG = D.largo;
 const xc = (n) => AN * (n - 0.5);   // centro de la nave n
-// p: dónde está el número · faro: dónde se para la baliza en el piso · cam: vista "Ver de cerca"
+// p: dónde está el número · faro: baliza en el piso (allí se "llega") · cam: vista "Ver de cerca"
+// previa: toma que muestra dónde queda antes de ir · foco: toma de cerca de lo que se explica
 const PUNTOS = [
-  { p: [AN + 1.0, 0.65, -1.2], faro: [AN + 1.0, -0.9], t: 'Riego',
-    d: 'Tubo PVC al pie de cada hilera, con su llave a la entrada, y manguera para regar a mano.',
-    pista: 'Mira hacia abajo, al pie de la mesa', cam: [AN + 2.6, 1.5, 1.6] },
+  { p: [xc(2) + 1.2, 0.65, -1.2], faro: [xc(2) + 0.6, -0.6], t: 'Riego',
+    d: 'Esta llave abre el agua de la hilera. El tubo blanco (PVC) va por el piso, debajo de las mesas. Para regar a mano se usa la manguera.',
+    cam: [AN + 2.6, 1.5, 1.6],
+    previa: [[xc(2) - 0.4, 2.1, 4.5], [xc(2) + 0.8, 0.4, -1.0]],
+    foco: [[xc(2) + 0.1, 1.3, 0.4], [xc(2) + 1.45, -0.45, -2.3]] },
   { p: [xc(2) + 1.2, 1.35, -7], faro: [xc(2), -7], t: 'Mesas de crecimiento',
-    d: 'Mesas metálicas a unos 80 cm del suelo con bandejas de alvéolos. La raíz queda al aire por debajo y no se enrolla.',
-    pista: 'Mira las bandejas de la mesa', cam: [xc(2) - 0.1, 1.75, -2.5] },
+    d: 'Mesas metálicas a unos 80 cm del suelo. Encima van bandejas negras con huecos (alvéolos): una plántula en cada hueco. La raíz queda al aire por debajo y así no se enrolla.',
+    cam: [xc(2) - 0.1, 1.75, -2.5],
+    previa: [[xc(2), 2.4, -1.2], [xc(2) + 0.2, 0.5, -7]],
+    foco: [[xc(2) + 0.3, 1.55, -6.2], [xc(2) + 1.45, 0.3, -7.7]] },
   { p: [xc(2), D.h_cumbre + 0.15, -13], faro: [xc(2), -13], t: 'Polisombra',
-    d: 'Dos capas: la malla en arco por fuera y una malla plana por dentro. Bajan la luz directa para que las plántulas no se quemen.',
-    pista: 'Mira hacia arriba', cam: [xc(2) + 10, 9, -1] },
+    d: 'Mira el techo: son dos mallas. La de arco va por fuera y la plana cuelga por dentro. Juntas dan sombra para que el sol directo no queme las plántulas.',
+    cam: [xc(2) + 10, 9, -1],
+    previa: [[xc(2), 2.4, -7.5], [xc(2), 0.5, -13]],
+    foco: [[xc(2) - 0.4, 1.9, -12], [xc(2) + 0.6, 4.4, -15.5]] },
   { p: [xc(4) + 2.1, 1.3, -12], faro: [xc(4), -12], t: 'Camas de germinación',
-    d: 'Cajones de madera con sustrato donde germina la semilla. Con las primeras hojas, la plántula pasa a las bandejas.',
-    pista: 'Mira las camas de madera', cam: [xc(4) + 0.2, 1.8, -6.5] },
+    d: 'Cajones de madera llenos de tierra (sustrato). Aquí se siembra la semilla y germina. Cuando la plántula saca sus primeras hojas, se pasa a una bandeja de las mesas.',
+    cam: [xc(4) + 0.2, 1.8, -6.5],
+    previa: [[20, 2.5, -16], [xc(4), 0.4, -12]],
+    foco: [[xc(4) + 0.5, 1.8, -10.4], [xc(4) + 2.7, 0.25, -12.9]] },
   { p: [21, 2.4, -(LG + 4.5)], faro: [21, -(LG + 3)], t: 'Zona de trabajo',
-    d: 'Bodegas y cobertizos detrás de las naves, junto a la casa.',
-    pista: 'Mira bajo el techo de lámina', cam: [34, 7, -(LG - 6)] },
+    d: 'Detrás de las naves están las bodegas y los cobertizos de lámina, junto a la casa.',
+    cam: [34, 7, -(LG - 6)],
+    previa: [[31, 3.0, -(LG + 9)], [23, 0.6, -(LG + 1)]],
+    foco: [[29.5, 2.5, -(LG + 5.5)], [16, 0.2, -(LG + 6.5)]] },
 ];
 PUNTOS.forEach((pt) => { pt.v = new THREE.Vector3(...pt.p); });
 const elPuntos = PUNTOS.map((pt, i) => {
@@ -515,14 +526,12 @@ $('infoAcercar').addEventListener('click', () => {
 });
 
 // ───────────────────────── recorrido guiado (modo caminar) ─────────────────────────
-// Se encuentran en orden. Solo se ven los ya encontrados y el siguiente cuando estás cerca.
+// En orden. Para cada punto: la cámara muestra dónde queda y vuelve al cuerpo; la persona
+// camina hasta la luz; al llegar se bloquea el movimiento, la cámara se acerca a lo que se
+// explica y espera el botón; luego vuelve despacio al cuerpo y se desbloquea.
 const vistos = new Set();
 const siguiente = () => (vistos.size < PUNTOS.length ? vistos.size : null);
-const popup = $('popup');
-let puntoCam = null;
-const CERCA = 6, CERCA_SALIR = 7.5;
-const MIRA = Math.cos(THREE.MathUtils.degToRad(22)), MIRA_SALIR = Math.cos(THREE.MathUtils.degToRad(34));
-const frente = new THREE.Vector3(), haciaPunto = new THREE.Vector3();
+const LLEGADA = 0.9;
 
 // baliza: anillo pulsante en el piso y columna de luz
 const texColumna = tex(8, 128, (g, w, h) => {
@@ -541,54 +550,113 @@ columna.position.y = 2.5;
 faro.add(anillo, columna);
 faro.visible = false;
 scene.add(faro);
+let enFoco = false;
 function ponerFaro() {
   const s = siguiente();
-  faro.visible = caminando && s !== null;
+  faro.visible = caminando && s !== null && !enFoco;
   if (s !== null) faro.position.set(PUNTOS[s].faro[0], 0, PUNTOS[s].faro[1]);
 }
 
-function mirada(pt) {
-  haciaPunto.copy(pt.v).sub(camera.position);
-  const d = haciaPunto.length();
-  return { d, dot: haciaPunto.divideScalar(d || 1).dot(frente) };
+// ── tomas de cámara ──
+const camAux = new THREE.PerspectiveCamera();
+function poseMirando([pos, obj]) {
+  camAux.position.set(...pos); camAux.lookAt(...obj);
+  return { p: camAux.position.clone(), q: camAux.quaternion.clone() };
 }
-const disponible = (i) => vistos.has(i) || i === siguiente();
-function revisarCercania() {
-  camera.getWorldDirection(frente);
-  if (puntoCam !== null) {
-    const m = mirada(PUNTOS[puntoCam]);
-    if (m.d > CERCA_SALIR || m.dot < MIRA_SALIR) soltarPunto();
+function poseCuerpo() {
+  camAux.position.set(jugador.pos.x, ALTURA_OJOS, jugador.pos.z);
+  camAux.rotation.set(jugador.pitch, jugador.yaw, 0, 'YXZ');
+  return { p: camAux.position.clone(), q: camAux.quaternion.clone() };
+}
+// cine: lista de pasos { hacia(), dur (ms), quieto (ms), alEmpezar(), alLlegar(), esperar }
+let cine = null;
+function correr(pasos, alFinal) {
+  cine = { pasos, i: 0, t0: performance.now(), desde: { p: camera.position.clone(), q: camera.quaternion.clone() }, alFinal };
+  cine.meta = pasos[0].hacia();
+  pasos[0].alEmpezar?.();
+  document.body.classList.add('cine');
+  ayuda();
+}
+function pasoCine() {
+  const c = cine, paso = c.pasos[c.i], t = performance.now() - c.t0;
+  const s = suave(Math.min(1, t / paso.dur));
+  camera.position.lerpVectors(c.desde.p, c.meta.p, s);
+  camera.quaternion.slerpQuaternions(c.desde.q, c.meta.q, s);
+  if (t < paso.dur) return;
+  if (!paso.llego) { paso.llego = true; paso.alLlegar?.(); }
+  if (paso.esperar ? !c.seguir : t < paso.dur + (paso.quieto || 0)) return;
+  c.seguir = false;
+  c.i++;
+  if (c.i >= c.pasos.length) {
+    cine = null;
+    document.body.classList.remove('cine');
+    camera.rotation.set(jugador.pitch, jugador.yaw, 0, 'YXZ');
+    ayuda();
+    c.alFinal?.();
+    return;
   }
-  if (puntoCam === null) {
-    let mejor = null, mejorDot = MIRA;
-    PUNTOS.forEach((pt, i) => {
-      if (!disponible(i)) return;
-      const m = mirada(pt);
-      if (m.d < CERCA && m.dot > mejorDot) { mejor = i; mejorDot = m.dot; }
-    });
-    if (mejor !== null) activarPunto(mejor);
-  }
+  c.desde = c.meta; c.t0 = performance.now();
+  c.meta = c.pasos[c.i].hacia();
+  c.pasos[c.i].alEmpezar?.();
 }
-function activarPunto(i) {
-  puntoCam = i;
-  $('popupT').textContent = `${i + 1}. ${PUNTOS[i].t}`; $('popupP').textContent = PUNTOS[i].d;
-  popup.classList.add('on');
-  elPuntos.forEach((b, k) => b.classList.toggle('activo', k === i));
-  if (i === siguiente()) {
-    vistos.add(i);
-    elPuntos[i].classList.add('visto');
-    ponerFaro();
-  }
+
+// ── tarjeta ──
+const tarjeta = $('tarjeta');
+function mostrarTarjeta(n, t, d, conBoton) {
+  $('tarjetaN').textContent = n; $('tarjetaT').textContent = t; $('tarjetaP').textContent = d;
+  $('tarjetaPie').hidden = !conBoton;
+  tarjeta.hidden = false;
+  if (conBoton && !movil) setTimeout(() => $('tarjetaOk').focus({ preventScroll: true }), 50);
 }
-function soltarPunto() {
-  puntoCam = null;
-  popup.classList.remove('on');
-  elPuntos.forEach((b) => b.classList.remove('activo'));
+function ocultarTarjeta() { tarjeta.hidden = true; }
+
+// 1) mostrar dónde queda el siguiente punto
+function pasosPrevia(i) {
+  const pt = PUNTOS[i];
+  return [
+    { hacia: () => poseMirando(pt.previa), dur: 1700, quieto: 2600,
+      alEmpezar: () => { ponerFaro(); mostrarTarjeta(`Siguiente: punto ${i + 1} de ${PUNTOS.length}`, pt.t, 'Camina hasta la luz. La flecha de arriba te indica el camino.', false); } },
+    { hacia: poseCuerpo, dur: 1500, alEmpezar: ocultarTarjeta },
+  ];
 }
+function vistaPrevia() {
+  const s = siguiente();
+  if (!caminando || s === null || cine) return;
+  correr(pasosPrevia(s));
+}
+// 2) al llegar: bloquear, acercar a lo que se explica y esperar el botón
+function llegar(i) {
+  const pt = PUNTOS[i];
+  enFoco = true; ponerFaro();
+  if (mouseAtrapado()) document.exitPointerLock();   // para poder hacer clic en el botón
+  teclas.clear(); soltar();
+  const pasos = [
+    { hacia: () => poseMirando(pt.foco), dur: 1900, esperar: true,
+      alLlegar: () => mostrarTarjeta(`Punto ${i + 1} de ${PUNTOS.length}`, pt.t, pt.d, true) },
+    { hacia: poseCuerpo, dur: 2600, quieto: siguiente() === null ? 0 : 500,
+      alEmpezar: () => {
+        ocultarTarjeta();
+        vistos.add(i); elPuntos[i].classList.add('visto');
+        enFoco = false; guiaPrevia = '';
+      } },
+  ];
+  // 3) de vuelta en el cuerpo: si quedan puntos, mostrar dónde queda el siguiente
+  if (i + 1 < PUNTOS.length) pasos.push(...pasosPrevia(i + 1));
+  correr(pasos, ponerFaro);
+}
+function confirmar() {
+  if (!cine || !cine.pasos[cine.i].esperar || !cine.pasos[cine.i].llego) return;
+  atraparMouse();               // el clic o el Enter vuelven a tomar el mouse
+  cine.seguir = true;
+}
+$('tarjetaOk').addEventListener('click', confirmar);
+$('guiaDonde').addEventListener('click', () => { $('guiaDonde').blur(); atraparMouse(); vistaPrevia(); });
 $('guiaOtra').addEventListener('click', () => {
-  vistos.clear(); soltarPunto();
+  vistos.clear();
   elPuntos.forEach((b) => b.classList.remove('visto'));
-  ponerFaro();
+  guiaPrevia = '';
+  atraparMouse();
+  vistaPrevia();
 });
 
 let guiaPrevia = '';
@@ -597,16 +665,18 @@ function actualizarGuia(t) {
   let titulo, sub, ang = 0;
   if (s === null) {
     titulo = 'Recorrido completo';
-    sub = `Encontraste los ${PUNTOS.length} puntos`;
+    sub = `Visitaste los ${PUNTOS.length} puntos`;
   } else {
     const pt = PUNTOS[s];
-    const dx = pt.faro[0] - camera.position.x, dz = pt.faro[1] - camera.position.z;
+    const dx = pt.faro[0] - jugador.pos.x, dz = pt.faro[1] - jugador.pos.z;
     const y = jugador.yaw;
     ang = Math.atan2(dx * Math.cos(y) - dz * Math.sin(y), -dx * Math.sin(y) - dz * Math.cos(y));
+    const m = Math.hypot(dx, dz);
     titulo = `Punto ${s + 1} de ${PUNTOS.length}: ${pt.t}`;
-    sub = camera.position.distanceTo(pt.v) < CERCA ? pt.pista : `A ${Math.max(1, Math.round(Math.hypot(dx, dz)))} m · sigue la flecha y la luz`;
+    sub = enFoco ? 'Llegaste' : `A ${Math.max(1, Math.round(m))} m · camina hasta la luz`;
     anillo.scale.setScalar(1 + 0.18 * Math.sin(t * 3.2));
     columna.material.opacity = 0.32 + 0.16 * Math.sin(t * 3.2);
+    if (!cine && m < LLEGADA) llegar(s);
   }
   $('flecha').style.transform = `rotate(${ang}rad)`;
   const clave = titulo + sub;
@@ -615,33 +685,26 @@ function actualizarGuia(t) {
     $('guiaT').textContent = titulo; $('guiaS').textContent = sub;
     $('guia').classList.toggle('completo', s === null);
     $('guiaOtra').hidden = s !== null;
+    $('guiaDonde').hidden = s === null;
   }
 }
 
 const vtmp = new THREE.Vector3();
 function moverPuntos() {
   const w = innerWidth, h = innerHeight;
-  if (caminando) revisarCercania();
+  const s = siguiente();
   PUNTOS.forEach((pt, i) => {
     vtmp.copy(pt.v).project(camera);
     const dist = camera.position.distanceTo(pt.v);
     const visible = caminando
-      ? (vistos.has(i) ? dist < 11 : i === siguiente() && dist < CERCA)
+      ? (vistos.has(i) || i === s) && (dist < 11 || (cine && i === s))
       : dist <= 140 && dist >= 0.8;
     const fuera = vtmp.z > 1 || Math.abs(vtmp.x) > 1.05 || Math.abs(vtmp.y) > 1.05 || !visible;
     const el = elPuntos[i];
     el.classList.toggle('lejos', fuera);
+    el.classList.toggle('activo', caminando && enFoco && i === s);
     if (fuera) return;
-    const x = (vtmp.x + 1) / 2 * w, y = (1 - vtmp.y) / 2 * h;
-    el.style.transform = `translate(${x}px, ${y}px)`;
-    if (caminando && i === puntoCam) {
-      const pw = popup.offsetWidth || 260, ph = popup.offsetHeight || 110;
-      let px = x + 26, origen = 'left center';
-      if (px + pw > w - 16) { px = x - 26 - pw; origen = 'right center'; }
-      px = Math.max(16, px);
-      const py = THREE.MathUtils.clamp(y - ph / 2, 130, Math.max(130, h - ph - 150));
-      popup.style.left = `${px}px`; popup.style.top = `${py}px`; popup.style.transformOrigin = origen;
-    }
+    el.style.transform = `translate(${(vtmp.x + 1) / 2 * w}px, ${(1 - vtmp.y) / 2 * h}px)`;
   });
 }
 
@@ -702,7 +765,7 @@ document.addEventListener('pointerlockchange', () => {
   ayuda();
 });
 document.addEventListener('mousemove', (ev) => {
-  if (!caminando || !mouseAtrapado()) return;
+  if (!caminando || !mouseAtrapado() || cine) return;
   jugador.yaw -= ev.movementX * 0.0022;
   jugador.pitch = THREE.MathUtils.clamp(jugador.pitch - ev.movementY * 0.0022, -1.35, 1.35);
 });
@@ -725,9 +788,13 @@ function entrarCaminar() {
   document.body.classList.add('caminando');
   $('guia').hidden = false;
   guiaPrevia = '';
+  enFoco = false;
+  camera.position.set(jugador.pos.x, ALTURA_OJOS, jugador.pos.z);
+  camera.rotation.set(jugador.pitch, jugador.yaw, 0, 'YXZ');
   ponerFaro();
   atraparMouse();
   ayuda();
+  setTimeout(vistaPrevia, 500);
 }
 function salirCaminar() {
   if (!caminando) return;
@@ -737,8 +804,8 @@ function salirCaminar() {
   $('btnCaminar').setAttribute('aria-pressed', 'false');
   $('palanca').classList.remove('on');
   if (mouseAtrapado()) document.exitPointerLock();
-  soltarPunto();
-  document.body.classList.remove('caminando', 'mouse-libre');
+  cine = null; enFoco = false; ocultarTarjeta();
+  document.body.classList.remove('caminando', 'mouse-libre', 'cine');
   $('guia').hidden = true;
   faro.visible = false;
   mostrarTira(tiraAntes);
@@ -747,6 +814,8 @@ function salirCaminar() {
 $('btnCaminar').addEventListener('click', () => (caminando ? salirCaminar() : entrarCaminar()));
 addEventListener('keydown', (ev) => {
   if (ev.target.closest?.('input')) return;
+  if (caminando && cine && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); confirmar(); return; }
+  if (caminando && !cine && ev.key.toLowerCase() === 'r') { vistaPrevia(); return; }
   teclas.add(ev.key.toLowerCase());
   if (caminando && (ev.key.startsWith('Arrow') || ev.key === ' ')) ev.preventDefault();
 });
@@ -760,7 +829,7 @@ lienzo.addEventListener('pointerdown', (ev) => {
   arrastre = { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
 });
 lienzo.addEventListener('pointermove', (ev) => {
-  if (!caminando || mouseAtrapado() || !arrastre || arrastre.id !== ev.pointerId) return;
+  if (!caminando || cine || mouseAtrapado() || !arrastre || arrastre.id !== ev.pointerId) return;
   const k = movil ? 0.006 : 0.004;
   jugador.yaw -= (ev.clientX - arrastre.x) * k;
   jugador.pitch = THREE.MathUtils.clamp(jugador.pitch - (ev.clientY - arrastre.y) * k, -1.3, 1.3);
@@ -813,8 +882,9 @@ function pasoCaminar(dt) {
 function ayuda() {
   let txt;
   if (!caminando) txt = movil ? 'Un dedo gira · dos dedos acercan y mueven · toca los números' : 'Arrastra para girar · rueda para acercar · clic derecho para mover · clic en los números';
+  else if (cine) txt = '';
   else if (movil) txt = 'Mueve el círculo para caminar · arrastra para mirar';
-  else if (mouseAtrapado()) txt = 'Mueve el mouse para mirar · W A S D para caminar · Shift corre · Esc suelta el mouse';
+  else if (mouseAtrapado()) txt = 'Mueve el mouse para mirar · W A S D para caminar · Shift corre · R muestra dónde ir · Esc suelta el mouse';
   else txt = 'Haz clic en la escena para mirar con el mouse';
   $('ayuda').textContent = txt;
 }
@@ -830,7 +900,7 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(0.05, reloj.getDelta());
   if (reproduciendo) avanzarHora(dt);
   if (caminando) {
-    pasoCaminar(dt);
+    if (cine) pasoCine(); else pasoCaminar(dt);
     actualizarGuia(reloj.elapsedTime);
   } else {
     if (anim) {
@@ -851,4 +921,4 @@ ayuda();
 progreso(1);
 setTimeout(() => { carga.classList.add('fin'); setTimeout(() => carga.remove(), 700); }, 60);
 window.__vivero = { scene, camera, controls, irA, D, totalPlantas, bandejas: bandejas.length, pasoCaminar, teclas, jugador,
-  avanzarHora, moverPuntos, actualizarGuia, PUNTOS, ponerPlay, vistos };
+  avanzarHora, moverPuntos, actualizarGuia, PUNTOS, ponerPlay, vistos, confirmar, pasoCine, get cine() { return cine; } };
