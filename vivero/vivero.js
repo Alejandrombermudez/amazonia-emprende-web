@@ -553,7 +553,7 @@ scene.add(faro);
 let enFoco = false;
 function ponerFaro() {
   const s = siguiente();
-  faro.visible = caminando && s !== null && !enFoco;
+  faro.visible = caminando && s !== null && !enFoco && !tuto;
   if (s !== null) faro.position.set(PUNTOS[s].faro[0], 0, PUNTOS[s].faro[1]);
 }
 
@@ -621,7 +621,7 @@ function pasosPrevia(i) {
 }
 function vistaPrevia() {
   const s = siguiente();
-  if (!caminando || s === null || cine) return;
+  if (!caminando || s === null || cine || tuto || pausaGiro) return;
   correr(pasosPrevia(s));
 }
 // 2) al llegar: bloquear, acercar a lo que se explica y esperar el botón
@@ -676,9 +676,10 @@ function actualizarGuia(t) {
     sub = enFoco ? 'Llegaste' : `A ${Math.max(1, Math.round(m))} m · camina hasta la luz`;
     anillo.scale.setScalar(1 + 0.18 * Math.sin(t * 3.2));
     columna.material.opacity = 0.32 + 0.16 * Math.sin(t * 3.2);
-    if (!cine && m < LLEGADA) llegar(s);
+    if (!cine && !tuto && !pausaGiro && m < LLEGADA) llegar(s);
   }
   $('flecha').style.transform = `rotate(${ang}rad)`;
+  $('flecha2').style.transform = `rotate(${ang}rad)`;
   const clave = titulo + sub;
   if (clave !== guiaPrevia) {
     guiaPrevia = clave;
@@ -686,7 +687,10 @@ function actualizarGuia(t) {
     $('guia').classList.toggle('completo', s === null);
     $('guiaOtra').hidden = s !== null;
     $('guiaDonde').hidden = s === null;
+    $('brujula').classList.toggle('completo', s === null);
   }
+  const bm = s === null ? 'Completo' : `${Math.max(1, Math.round(Math.hypot(PUNTOS[s].faro[0] - jugador.pos.x, PUNTOS[s].faro[1] - jugador.pos.z)))} m`;
+  if ($('brujulaM').textContent !== bm) $('brujulaM').textContent = bm;
 }
 
 const vtmp = new THREE.Vector3();
@@ -749,7 +753,8 @@ for (let k = 0; k <= D.naves; k++) for (let z = 0; z <= LG; z += 4) cajas.push([
 let caminando = false;
 const jugador = { pos: new THREE.Vector3(), yaw: 0, pitch: 0 };
 const teclas = new Set();
-const palanca = { x: 0, y: 0, id: null };
+const palanca = { x: 0, y: 0, id: null };       // mando izquierdo: caminar
+const palancaMirar = { x: 0, y: 0, id: null };  // mando derecho: mirar
 const ALTURA_OJOS = 1.6, R = 0.28;
 const lienzo = renderer.domElement;
 const mouseAtrapado = () => document.pointerLockElement === lienzo;
@@ -766,6 +771,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 document.addEventListener('mousemove', (ev) => {
   if (!caminando || !mouseAtrapado() || cine) return;
+  if (tuto && tuto.paso === 2) tuto.mouse += Math.abs(ev.movementX) + Math.abs(ev.movementY);
   jugador.yaw -= ev.movementX * 0.0022;
   jugador.pitch = THREE.MathUtils.clamp(jugador.pitch - ev.movementY * 0.0022, -1.35, 1.35);
 });
@@ -782,7 +788,6 @@ function entrarCaminar() {
   $('btnCaminar').setAttribute('aria-pressed', 'true');
   $('btnCaminar').blur();
   marcarVista(null);
-  $('palanca').classList.toggle('on', movil);
   cerrarInfo();
   tiraAntes = !$('tira').classList.contains('oculta');
   document.body.classList.add('caminando');
@@ -794,7 +799,7 @@ function entrarCaminar() {
   ponerFaro();
   atraparMouse();
   ayuda();
-  setTimeout(vistaPrevia, 500);
+  arrancarRecorrido();
 }
 function salirCaminar() {
   if (!caminando) return;
@@ -802,9 +807,12 @@ function salirCaminar() {
   const f = new THREE.Vector3(-Math.sin(jugador.yaw), 0, -Math.cos(jugador.yaw));
   controls.target.copy(camera.position).addScaledVector(f, 3).setY(1.2);
   $('btnCaminar').setAttribute('aria-pressed', 'false');
-  $('palanca').classList.remove('on');
+  mostrarPalancas(false);
   if (mouseAtrapado()) document.exitPointerLock();
   cine = null; enFoco = false; ocultarTarjeta();
+  tuto = null; $('tuto').hidden = true;
+  pausaGiro = false; $('girar').hidden = true;
+  if (movil) soltarHorizontal();
   document.body.classList.remove('caminando', 'mouse-libre', 'cine');
   $('guia').hidden = true;
   faro.visible = false;
@@ -831,6 +839,7 @@ lienzo.addEventListener('pointerdown', (ev) => {
 lienzo.addEventListener('pointermove', (ev) => {
   if (!caminando || cine || mouseAtrapado() || !arrastre || arrastre.id !== ev.pointerId) return;
   const k = movil ? 0.006 : 0.004;
+  if (tuto && tuto.paso === 2) tuto.mouse += Math.abs(ev.clientX - arrastre.x) + Math.abs(ev.clientY - arrastre.y);
   jugador.yaw -= (ev.clientX - arrastre.x) * k;
   jugador.pitch = THREE.MathUtils.clamp(jugador.pitch - (ev.clientY - arrastre.y) * k, -1.3, 1.3);
   arrastre.x = ev.clientX; arrastre.y = ev.clientY;
@@ -838,27 +847,118 @@ lienzo.addEventListener('pointermove', (ev) => {
 lienzo.addEventListener('pointerup', () => { arrastre = null; });
 lienzo.addEventListener('pointercancel', () => { arrastre = null; });
 
-// palanca táctil
-const elP = $('palanca'), bolita = elP.querySelector('i');
-function moverPalanca(ev) {
-  const r = elP.getBoundingClientRect();
-  let x = (ev.clientX - r.left - r.width / 2) / (r.width / 2), y = (ev.clientY - r.top - r.height / 2) / (r.height / 2);
-  const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
-  palanca.x = x; palanca.y = y;
-  bolita.style.transform = `translate(${x * 33}px, ${y * 33}px)`;
+// mandos táctiles: izquierdo camina, derecho mira
+function crearPalanca(el, estado) {
+  const bol = el.querySelector('i');
+  const mover = (ev) => {
+    const r = el.getBoundingClientRect();
+    let x = (ev.clientX - r.left - r.width / 2) / (r.width / 2), y = (ev.clientY - r.top - r.height / 2) / (r.height / 2);
+    const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
+    estado.x = x; estado.y = y;
+    bol.style.transform = `translate(${x * r.width * 0.3}px, ${y * r.width * 0.3}px)`;
+  };
+  const suelta = () => { estado.id = null; estado.x = estado.y = 0; bol.style.transform = ''; };
+  el.addEventListener('pointerdown', (ev) => { estado.id = ev.pointerId; el.setPointerCapture(ev.pointerId); mover(ev); });
+  el.addEventListener('pointermove', (ev) => { if (estado.id === ev.pointerId) mover(ev); });
+  el.addEventListener('pointerup', suelta); el.addEventListener('pointercancel', suelta);
+  return suelta;
 }
-elP.addEventListener('pointerdown', (ev) => { palanca.id = ev.pointerId; elP.setPointerCapture(ev.pointerId); moverPalanca(ev); });
-elP.addEventListener('pointermove', (ev) => { if (palanca.id === ev.pointerId) moverPalanca(ev); });
-const soltar = () => { palanca.id = null; palanca.x = palanca.y = 0; bolita.style.transform = ''; };
-elP.addEventListener('pointerup', soltar); elP.addEventListener('pointercancel', soltar);
+const soltarMover = crearPalanca($('palanca'), palanca), soltarMirar = crearPalanca($('palancaMirar'), palancaMirar);
+const soltar = () => { soltarMover(); soltarMirar(); };
+function mostrarPalancas(on) {
+  $('palanca').classList.toggle('on', on); $('palancaMirar').classList.toggle('on', on);
+  if (!on) soltar();
+}
+
+// celular: pantalla completa y horizontal; si no se puede girar solo, se le pide a la persona
+let pausaGiro = false, arrancado = false;
+function pedirHorizontal() {
+  const el = document.documentElement;
+  try {
+    const r = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : null;
+    if (r && r.then) r.then(() => screen.orientation?.lock?.('landscape')).then(revisarOrientacion, () => {}).catch(() => {});
+  } catch (err) { /* sin pantalla completa */ }
+}
+function soltarHorizontal() {
+  try { screen.orientation?.unlock?.(); } catch (err) { /* nada */ }
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
+function revisarOrientacion() {
+  if (!caminando || !movil) return;
+  const vertical = innerHeight > innerWidth;
+  pausaGiro = vertical;
+  $('girar').hidden = !vertical;
+  mostrarPalancas(!vertical);
+  if (!vertical && !arrancado) { arrancado = true; setTimeout(vistaPrevia, 700); }
+}
+addEventListener('resize', revisarOrientacion);
+screen.orientation?.addEventListener?.('change', () => setTimeout(revisarOrientacion, 150));
+$('girarCancelar').addEventListener('click', salirCaminar);
+$('salir').addEventListener('click', salirCaminar);
+$('brujula').addEventListener('click', () => {
+  if (siguiente() === null) { vistos.clear(); elPuntos.forEach((b) => b.classList.remove('visto')); guiaPrevia = ''; }
+  vistaPrevia();
+});
+
+// computador: tutorial de dos pasos que avanza solo cuando la persona lo hace
+let tutorialHecho = false, tuto = null;
+const FLECHAS = { w: 'arrowup', a: 'arrowleft', s: 'arrowdown', d: 'arrowright' };
+function arrancarRecorrido() {
+  if (movil) { arrancado = false; pedirHorizontal(); revisorOrientacionDiferida(); }
+  else if (!tutorialHecho) iniciarTutorial();
+  else setTimeout(vistaPrevia, 500);
+}
+function revisorOrientacionDiferida() { revisarOrientacion(); setTimeout(revisarOrientacion, 400); }
+function iniciarTutorial() {
+  tuto = { paso: 1, desde: jugador.pos.clone(), mouse: 0, listo: false };
+  $('tutoN').textContent = 'Paso 1 de 2';
+  $('tuto1').hidden = false; $('tuto2').hidden = true;
+  $('tuto').classList.remove('hecho');
+  $('tuto').hidden = false;
+  $('guia').hidden = true;
+  ponerFaro();
+  ayuda();
+}
+function pasoTutorial() {
+  if (!tuto) return;
+  document.querySelectorAll('#tuto kbd').forEach((k) => k.classList.toggle('on', teclas.has(k.dataset.k) || teclas.has(FLECHAS[k.dataset.k])));
+  if (tuto.listo) return;
+  if (tuto.paso === 1 && Math.hypot(jugador.pos.x - tuto.desde.x, jugador.pos.z - tuto.desde.z) > 2) completarPasoTuto();
+  if (tuto.paso === 2) {
+    const txt = mouseAtrapado() ? 'Mira a tu alrededor, sin hacer clic.' : 'Primero haz clic en la escena para usar el mouse.';
+    if ($('tuto2p').textContent !== txt) $('tuto2p').textContent = txt;
+    if (tuto.mouse > 700) completarPasoTuto();
+  }
+}
+function completarPasoTuto() {
+  tuto.listo = true;
+  $('tuto').classList.add('hecho');
+  setTimeout(() => {
+    if (!tuto) return;
+    tuto.listo = false;
+    $('tuto').classList.remove('hecho');
+    if (tuto.paso === 1) {
+      tuto.paso = 2; tuto.mouse = 0;
+      $('tuto1').hidden = true; $('tuto2').hidden = false; $('tutoN').textContent = 'Paso 2 de 2';
+    } else {
+      tuto = null; tutorialHecho = true;
+      $('tuto').hidden = true; $('guia').hidden = false; guiaPrevia = '';
+      ayuda();
+      vistaPrevia();
+    }
+  }, 1000);
+}
 
 function pasoCaminar(dt) {
+  if (pausaGiro) return;
   let ad = 0, la = 0;
   if (teclas.has('w') || teclas.has('arrowup')) ad += 1;
   if (teclas.has('s') || teclas.has('arrowdown')) ad -= 1;
   if (teclas.has('a') || teclas.has('arrowleft')) la -= 1;
   if (teclas.has('d') || teclas.has('arrowright')) la += 1;
   ad -= palanca.y; la += palanca.x;
+  jugador.yaw -= palancaMirar.x * 2.4 * dt;
+  jugador.pitch = THREE.MathUtils.clamp(jugador.pitch - palancaMirar.y * 1.5 * dt, -1.3, 1.3);
   const vel = (teclas.has('shift') ? 4.2 : 2.0) * dt;
   const f = new THREE.Vector3(-Math.sin(jugador.yaw), 0, -Math.cos(jugador.yaw));
   const d = new THREE.Vector3(-f.z, 0, f.x);
@@ -882,8 +982,8 @@ function pasoCaminar(dt) {
 function ayuda() {
   let txt;
   if (!caminando) txt = movil ? 'Un dedo gira · dos dedos acercan y mueven · toca los números' : 'Arrastra para girar · rueda para acercar · clic derecho para mover · clic en los números';
-  else if (cine) txt = '';
-  else if (movil) txt = 'Mueve el círculo para caminar · arrastra para mirar';
+  else if (cine || tuto) txt = '';
+  else if (movil) txt = '';
   else if (mouseAtrapado()) txt = 'Mueve el mouse para mirar · W A S D para caminar · Shift corre · R muestra dónde ir · Esc suelta el mouse';
   else txt = 'Haz clic en la escena para mirar con el mouse';
   $('ayuda').textContent = txt;
@@ -901,6 +1001,7 @@ renderer.setAnimationLoop(() => {
   if (reproduciendo) avanzarHora(dt);
   if (caminando) {
     if (cine) pasoCine(); else pasoCaminar(dt);
+    pasoTutorial();
     actualizarGuia(reloj.elapsedTime);
   } else {
     if (anim) {
@@ -921,4 +1022,5 @@ ayuda();
 progreso(1);
 setTimeout(() => { carga.classList.add('fin'); setTimeout(() => carga.remove(), 700); }, 60);
 window.__vivero = { scene, camera, controls, irA, D, totalPlantas, bandejas: bandejas.length, pasoCaminar, teclas, jugador,
-  avanzarHora, moverPuntos, actualizarGuia, PUNTOS, ponerPlay, vistos, confirmar, pasoCine, get cine() { return cine; } };
+  avanzarHora, moverPuntos, actualizarGuia, PUNTOS, ponerPlay, vistos, confirmar, pasoCine, pasoTutorial, palancaMirar,
+  get cine() { return cine; }, get tuto() { return tuto; } };
