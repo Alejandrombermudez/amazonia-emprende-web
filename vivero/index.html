@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vivero en 3D · Amazonía Emprende</title>
+<meta name="description" content="Recorrido 3D del vivero de Amazonía Emprende: naves con polisombra, mesas de crecimiento y camas de germinación.">
+<meta name="theme-color" content="#2f3f32">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preload" href="vivero.glb" as="fetch" crossorigin>
+<style>
+  :root{
+    --bone:#e4ded2; --forest:#2f3f32; --amber:#e1a644; --ink:#1e1a18;
+    --vidrio:rgba(24,34,26,.58); --vidrio-borde:rgba(228,222,210,.18);
+    --texto:#f3efe6; --tenue:rgba(243,239,230,.72);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#1a241c;color:var(--texto);
+    font-family:Poppins,system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+  #lienzo{position:fixed;inset:0;touch-action:none}
+  #lienzo canvas{display:block;outline:none}
+  .vidrio{background:var(--vidrio);border:1px solid var(--vidrio-borde);
+    backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);
+    border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.25)}
+  button{font:inherit;color:inherit;cursor:pointer}
+
+  /* encabezado */
+  .cab{position:fixed;top:max(12px,env(safe-area-inset-top));left:16px;right:16px;display:flex;gap:10px;
+    align-items:flex-start;justify-content:space-between;pointer-events:none;z-index:5}
+  .cab > *{pointer-events:auto}
+  .titulo{padding:10px 14px;display:flex;gap:12px;align-items:center}
+  .titulo a{color:var(--tenue);text-decoration:none;font-size:13px;white-space:nowrap}
+  .titulo a:hover{color:var(--texto)}
+  .titulo .sep{width:1px;height:22px;background:var(--vidrio-borde)}
+  .titulo h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.2px}
+  .titulo h1 small{display:block;font-size:11.5px;font-weight:400;color:var(--tenue)}
+  .btn-info{padding:10px 14px;font-size:13px;font-weight:500;border-radius:14px}
+
+  /* panel de cifras */
+  .panel{position:fixed;top:calc(max(12px,env(safe-area-inset-top)) + 58px);right:16px;width:290px;
+    padding:16px 18px;z-index:5;font-size:13px;line-height:1.45;transition:opacity .25s,transform .25s}
+  .panel.oculto{opacity:0;transform:translateY(-6px);pointer-events:none}
+  .panel h2{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--amber);letter-spacing:.3px;text-transform:uppercase}
+  .cifras{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin:0 0 12px}
+  .cifras div b{display:block;font-size:20px;font-weight:600;line-height:1.1}
+  .cifras div span{font-size:11.5px;color:var(--tenue)}
+  .panel p{margin:0;color:var(--tenue);font-size:11.5px}
+  .hora{margin:12px 0 4px;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--tenue)}
+  .hora input{flex:1;accent-color:var(--amber)}
+  .hora output{width:38px;text-align:right;color:var(--texto)}
+
+  /* barra de vistas */
+  .barra{position:fixed;left:50%;transform:translateX(-50%);bottom:max(14px,env(safe-area-inset-bottom));
+    display:flex;gap:4px;padding:5px;z-index:5;max-width:calc(100% - 32px);overflow-x:auto;scrollbar-width:none}
+  .barra::-webkit-scrollbar{display:none}
+  .barra button{background:none;border:0;padding:9px 13px;border-radius:10px;font-size:13px;white-space:nowrap;color:var(--tenue)}
+  .barra button:hover{color:var(--texto);background:rgba(255,255,255,.06)}
+  .barra button[aria-pressed=true]{background:var(--bone);color:var(--forest);font-weight:500}
+  .barra .div{width:1px;margin:6px 2px;background:var(--vidrio-borde);flex:none}
+  .barra .caminar[aria-pressed=true]{background:var(--amber);color:var(--ink)}
+
+  .ayuda{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(max(14px,env(safe-area-inset-bottom)) + 58px);
+    font-size:12px;color:var(--tenue);text-shadow:0 1px 3px rgba(0,0,0,.6);z-index:4;white-space:nowrap;pointer-events:none}
+
+  /* puntos de información */
+  .punto{position:fixed;left:0;top:0;z-index:3;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;
+    border:2px solid var(--bone);background:rgba(47,63,50,.82);color:var(--bone);font-size:13px;font-weight:600;
+    display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.35);transition:opacity .2s}
+  .punto:hover,.punto.activo{background:var(--amber);color:var(--ink);border-color:var(--amber)}
+  .punto.lejos{opacity:0;pointer-events:none}
+  .ficha{position:fixed;z-index:6;width:270px;padding:14px 16px;font-size:13px;line-height:1.5}
+  .ficha h3{margin:0 0 6px;font-size:14px;font-weight:600;color:var(--amber)}
+  .ficha p{margin:0;color:var(--texto)}
+  .ficha button{position:absolute;top:6px;right:8px;background:none;border:0;font-size:18px;color:var(--tenue);padding:4px 6px}
+  .ficha[hidden]{display:none}
+
+  /* palanca táctil para caminar */
+  .palanca{position:fixed;left:24px;bottom:calc(max(14px,env(safe-area-inset-bottom)) + 76px);width:112px;height:112px;
+    border-radius:50%;z-index:5;display:none;touch-action:none}
+  .palanca.on{display:block}
+  .palanca i{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;
+    background:var(--bone);opacity:.85}
+
+  /* carga */
+  .carga{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    background:#1a241c;transition:opacity .6s}
+  .carga.fin{opacity:0;pointer-events:none}
+  .carga .barra-carga{width:180px;height:3px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
+  .carga .barra-carga i{display:block;height:100%;width:0;background:var(--amber);transition:width .2s}
+  .carga span{font-size:13px;color:var(--tenue)}
+  .carga.error span{color:#f0b3a8}
+
+  @media (max-width:760px){
+    .panel{left:16px;right:16px;width:auto}
+    .titulo h1 small{display:none}
+    .titulo a span{display:none}
+    .ayuda{white-space:normal;text-align:center;width:calc(100% - 32px)}
+    .barra{gap:2px;padding:4px}
+    .barra button{padding:9px 10px;font-size:12.5px}
+    .solo-escritorio{display:none}
+    .ficha{left:16px!important;right:16px;width:auto;top:auto!important;bottom:calc(max(14px,env(safe-area-inset-bottom)) + 64px)}
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="lienzo" aria-label="Modelo 3D del vivero"></div>
+
+<header class="cab">
+  <div class="titulo vidrio">
+    <a href="/" title="Volver a Amazonía Emprende">← <span>Amazonía Emprende</span></a>
+    <div class="sep"></div>
+    <h1>Vivero en 3D<small>Recorrido por las naves de producción</small></h1>
+  </div>
+  <button class="btn-info vidrio" id="btnInfo" aria-expanded="false">Cifras</button>
+</header>
+
+<aside class="panel vidrio oculto" id="panel" aria-label="Cifras del vivero">
+  <h2>El vivero en cifras</h2>
+  <div class="cifras" id="cifras"></div>
+  <p>Medidas y cantidades estimadas a partir de fotografías. Sirven para dar una idea del tamaño; no son un inventario.</p>
+  <label class="hora">Hora <input type="range" id="hora" min="6" max="18" step="0.25" value="7.5"><output id="horaTxt">7:30</output></label>
+</aside>
+
+<nav class="barra vidrio" id="barra" aria-label="Vistas">
+  <button data-vista="aerea" aria-pressed="true">Aérea</button>
+  <button data-vista="entrada" aria-pressed="false">Entrada</button>
+  <button data-vista="mesas" aria-pressed="false">Mesas</button>
+  <button data-vista="camas" aria-pressed="false">Camas</button>
+  <button data-vista="planta" aria-pressed="false" class="solo-escritorio">Planta</button>
+  <span class="div"></span>
+  <button class="caminar" id="btnCaminar" aria-pressed="false">Caminar</button>
+</nav>
+<div class="ayuda" id="ayuda"></div>
+
+<div class="palanca vidrio" id="palanca"><i></i></div>
+<div id="puntos"></div>
+<div class="ficha vidrio" id="ficha" hidden role="dialog" aria-live="polite">
+  <button aria-label="Cerrar" id="fichaCerrar">×</button>
+  <h3 id="fichaT"></h3><p id="fichaP"></p>
+</div>
+
+<div class="carga" id="carga"><div class="barra-carga"><i id="cargaBarra"></i></div><span id="cargaTxt">Cargando el vivero…</span></div>
+
+<script type="module" src="vivero.js"></script>
+</body>
+</html>
