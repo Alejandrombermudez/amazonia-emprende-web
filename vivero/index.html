@@ -15,8 +15,8 @@
     --bone:#e4ded2; --forest:#2f3f32; --amber:#e1a644; --ink:#1e1a18;
     --vidrio:rgba(24,34,26,.6); --vidrio-borde:rgba(228,222,210,.18);
     --texto:#f3efe6; --tenue:rgba(243,239,230,.72);
-    --arriba:calc(max(12px,env(safe-area-inset-top)) + 64px);
-    --abajo:calc(max(14px,env(safe-area-inset-bottom)) + 92px);
+    --fila1:max(12px,env(safe-area-inset-top));
+    --fila2:calc(max(12px,env(safe-area-inset-top)) + 58px);
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:#1a241c;color:var(--texto);
@@ -29,41 +29,45 @@
   button{font:inherit;color:inherit;cursor:pointer}
   [hidden]{display:none!important}
 
-  /* encabezado */
-  .cab{position:fixed;top:max(12px,env(safe-area-inset-top));left:16px;right:16px;display:flex;gap:10px;
+  /* fila de arriba */
+  .cab{position:fixed;top:var(--fila1);left:16px;right:16px;display:flex;gap:10px;
     align-items:flex-start;justify-content:space-between;pointer-events:none;z-index:6}
   .cab > *{pointer-events:auto}
   .titulo{padding:10px 14px;display:flex;gap:12px;align-items:center}
   .titulo a{color:var(--tenue);text-decoration:none;font-size:13px;white-space:nowrap}
   .titulo a:hover{color:var(--texto)}
   .titulo .sep{width:1px;height:22px;background:var(--vidrio-borde)}
-  .titulo h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.2px}
+  .titulo h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.2px;white-space:nowrap}
   .titulo h1 small{display:block;font-size:11.5px;font-weight:400;color:var(--tenue)}
-  .btn-info{padding:10px 14px;font-size:13px;font-weight:500;border-radius:14px}
-  .logro{padding:9px 14px;font-size:12.5px;color:var(--tenue);align-self:center}
-  .logro b{color:var(--amber);font-weight:600}
+  .btn-cifras{padding:10px 14px;font-size:13px;font-weight:500;border-radius:14px}
+  .btn-cifras[aria-expanded=true]{background:rgba(228,222,210,.88);color:var(--forest)}
+  body.caminando .btn-cifras{visibility:hidden}
 
-  /* barras laterales */
-  .lateral{position:fixed;top:var(--arriba);bottom:var(--abajo);width:300px;padding:18px;z-index:5;
-    display:flex;flex-direction:column;overflow:auto;font-size:13px;line-height:1.5;
-    transition:opacity .3s,transform .3s}
-  .der{right:16px}
-  .izq{left:16px}
-  .izq.cerrada{opacity:0;transform:translateX(-24px);pointer-events:none}
-  .lateral h2{margin:0 0 12px;font-size:12px;font-weight:600;color:var(--amber);letter-spacing:.4px;text-transform:uppercase}
-  .cifras{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;margin:0 0 14px}
-  .cifras div b{display:block;font-size:21px;font-weight:600;line-height:1.1}
-  .cifras div span{font-size:11.5px;color:var(--tenue)}
-  .nota{margin:0;color:var(--tenue);font-size:11.5px}
-  .hora{margin-top:auto;padding-top:16px;border-top:1px solid var(--vidrio-borde)}
-  .hora .fila{display:flex;align-items:center;gap:10px}
-  .hora .etq{font-size:11.5px;color:var(--tenue);margin-bottom:8px;display:flex;justify-content:space-between}
-  .hora output{font-size:20px;font-weight:600;color:var(--texto);min-width:56px}
-  .hora input{flex:1;accent-color:var(--amber);min-width:0}
-  .play{flex:none;width:38px;height:38px;border-radius:50%;border:0;background:var(--amber);color:var(--ink);
+  /* hora arriba al centro */
+  .hora{position:fixed;top:var(--fila1);left:50%;transform:translateX(-50%);z-index:6;
+    display:flex;align-items:center;gap:10px;padding:6px 14px 6px 6px;border-radius:999px}
+  .hora output{font-size:15px;font-weight:600;min-width:44px;text-align:center}
+  .hora input{width:130px;accent-color:var(--amber)}
+  .play{flex:none;width:32px;height:32px;border-radius:50%;border:0;background:var(--amber);color:var(--ink);
     display:flex;align-items:center;justify-content:center}
-  .play svg{width:16px;height:16px}
+  .play svg{width:13px;height:13px}
 
+  /* cifras en una línea */
+  .tira{position:fixed;top:var(--fila2);right:16px;z-index:5;max-width:calc(100% - 32px);display:flex;align-items:center;
+    gap:2px;padding:5px 6px 5px 12px;border-radius:12px;font-size:12px;white-space:nowrap;overflow-x:auto;scrollbar-width:none;
+    transition:opacity .25s,transform .25s}
+  .tira::-webkit-scrollbar{display:none}
+  .tira.oculta,body.caminando .tira{opacity:0;transform:translateY(-6px);pointer-events:none}
+  .tira span{color:var(--tenue);padding:0 10px;border-right:1px solid var(--vidrio-borde)}
+  .tira span:last-of-type{border-right:0}
+  .tira b{color:var(--texto);font-weight:600}
+  .tira button{background:none;border:0;color:var(--tenue);font-size:17px;line-height:1;padding:2px 6px}
+  .tira button:hover{color:var(--texto)}
+
+  /* barra izquierda: información del punto */
+  .izq{position:fixed;left:16px;top:calc(var(--fila2) + 4px);bottom:calc(max(14px,env(safe-area-inset-bottom)) + 92px);width:290px;
+    padding:18px;z-index:5;display:flex;flex-direction:column;overflow:auto;font-size:13px;line-height:1.5;transition:opacity .3s,transform .3s}
+  .izq.cerrada{opacity:0;transform:translateX(-24px);pointer-events:none}
   .izq .cab-info{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
   .izq .cab-info span{font-size:11.5px;color:var(--tenue)}
   .izq .cerrar{background:none;border:0;font-size:20px;line-height:1;color:var(--tenue);padding:2px 4px}
@@ -80,6 +84,18 @@
   .indice i{font-style:normal;width:22px;height:22px;border-radius:50%;border:1.5px solid currentColor;display:flex;
     align-items:center;justify-content:center;font-size:11px;font-weight:600;flex:none}
 
+  /* guía del recorrido (modo caminar) */
+  .guia{position:fixed;top:var(--fila2);left:50%;transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:12px;
+    padding:8px 16px 8px 8px;border-radius:999px;max-width:calc(100% - 32px)}
+  .guia .flecha{flex:none;width:38px;height:38px;border-radius:50%;background:var(--amber);color:var(--ink);
+    display:flex;align-items:center;justify-content:center}
+  .guia .flecha svg{width:20px;height:20px;transition:transform .08s linear}
+  .guia .txt{min-width:0}
+  .guia .t{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .guia .s{font-size:12px;color:var(--tenue)}
+  .guia .otra{border:1px solid var(--vidrio-borde);background:rgba(255,255,255,.08);border-radius:999px;padding:6px 12px;font-size:12px}
+  .guia.completo .flecha svg{transform:none!important}
+
   /* barra de vistas */
   .barra{position:fixed;left:50%;transform:translateX(-50%);bottom:max(14px,env(safe-area-inset-bottom));
     display:flex;gap:4px;padding:5px;z-index:5;max-width:calc(100% - 32px);overflow-x:auto;scrollbar-width:none}
@@ -91,6 +107,12 @@
   .barra .caminar[aria-pressed=true]{background:var(--amber);color:var(--ink)}
   .ayuda{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(max(14px,env(safe-area-inset-bottom)) + 58px);
     font-size:12px;color:var(--tenue);text-shadow:0 1px 3px rgba(0,0,0,.6);z-index:4;white-space:nowrap;pointer-events:none}
+  body.mouse-libre .ayuda{color:var(--texto);font-size:13px;font-weight:500}
+
+  /* mira al centro mientras el mouse controla la vista */
+  .mira{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;
+    background:rgba(243,239,230,.85);box-shadow:0 0 0 1.5px rgba(0,0,0,.35);z-index:3;display:none;pointer-events:none}
+  body.caminando:not(.mouse-libre):not(.tactil) .mira{display:block}
 
   /* números en la escena */
   .punto{position:fixed;left:0;top:0;z-index:3;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;
@@ -126,26 +148,24 @@
   .carga span{font-size:13px;color:var(--tenue)}
   .carga.error span{color:#f0b3a8}
 
-  .solo-angosto{display:none}
   @media (max-width:980px){
-    .lateral{width:260px;padding:16px}
+    .titulo h1 small{display:none}
+    .hora input{width:90px}
   }
   @media (max-width:820px){
-    .solo-angosto{display:block}
-    .der{top:var(--arriba);bottom:auto;left:16px;right:16px;width:auto;max-height:calc(100% - 180px)}
-    .der.oculto{opacity:0;transform:translateY(-6px);pointer-events:none}
+    :root{--fila2:calc(max(12px,env(safe-area-inset-top)) + 104px)}
+    .hora{top:calc(var(--fila1) + 52px)}
     .izq{top:auto;bottom:calc(max(14px,env(safe-area-inset-bottom)) + 62px);right:16px;width:auto;max-height:52vh}
     .izq.cerrada{transform:translateY(16px)}
     .indice{display:none}
     .ayuda{white-space:normal;text-align:center;width:calc(100% - 32px)}
-    .titulo h1 small{display:none}
-    .logro{display:none}
   }
   @media (max-width:520px){
     .titulo a span{display:none}
     .barra{gap:2px;padding:4px}
     .barra button{padding:9px 10px;font-size:12.5px}
     .solo-escritorio{display:none}
+    .tira{left:16px;right:auto}
   }
 </style>
 <script type="importmap">
@@ -164,12 +184,21 @@
     <div class="sep"></div>
     <h1>Vivero en 3D<small>Recorrido por las naves de producción</small></h1>
   </div>
-  <div class="logro vidrio" id="logro" hidden>Puntos encontrados: <b id="logroN">0 de 5</b></div>
-  <button class="btn-info vidrio solo-angosto" id="btnInfo" aria-expanded="false" aria-controls="panel">Cifras</button>
+  <button class="btn-cifras vidrio" id="btnCifras" aria-expanded="true" aria-controls="tira">Cifras</button>
 </header>
 
-<!-- izquierda: información del punto elegido -->
-<aside class="lateral izq vidrio cerrada" id="info" aria-label="Información del punto" aria-hidden="true">
+<div class="hora vidrio" role="group" aria-label="Hora del día">
+  <button class="play" id="play" aria-label="Pausar" aria-pressed="true">
+    <svg viewBox="0 0 16 16" id="icoPlay" hidden><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>
+    <svg viewBox="0 0 16 16" id="icoPausa"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor"/></svg>
+  </button>
+  <output id="horaTxt">7:30</output>
+  <input type="range" id="hora" min="6" max="18" step="0.05" value="7.5" aria-label="Hora del día">
+</div>
+
+<div class="tira vidrio" id="tira" aria-label="Cifras del vivero"><button id="tiraCerrar" aria-label="Esconder cifras" title="Esconder">×</button></div>
+
+<aside class="izq vidrio cerrada" id="info" aria-label="Información del punto" aria-hidden="true">
   <div class="cab-info"><span id="infoN"></span><button class="cerrar" id="infoCerrar" aria-label="Cerrar">×</button></div>
   <h3 id="infoT"></h3>
   <p class="desc" id="infoP"></p>
@@ -177,23 +206,11 @@
   <ol class="indice" id="indice"></ol>
 </aside>
 
-<!-- derecha: cifras y hora -->
-<aside class="lateral der vidrio" id="panel" aria-label="Cifras del vivero">
-  <h2>El vivero en cifras</h2>
-  <div class="cifras" id="cifras"></div>
-  <p class="nota">Medidas y cantidades estimadas a partir de fotografías. Sirven para dar una idea del tamaño; no son un inventario.</p>
-  <div class="hora">
-    <div class="etq"><span>Hora del día</span><span>10 s por hora</span></div>
-    <div class="fila">
-      <button class="play" id="play" aria-label="Reproducir el paso de las horas" aria-pressed="false">
-        <svg viewBox="0 0 16 16" id="icoPlay"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>
-        <svg viewBox="0 0 16 16" id="icoPausa" hidden><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor"/></svg>
-      </button>
-      <output id="horaTxt">7:30</output>
-      <input type="range" id="hora" min="6" max="18" step="0.05" value="7.5" aria-label="Hora del día">
-    </div>
-  </div>
-</aside>
+<div class="guia vidrio" id="guia" hidden aria-live="polite">
+  <div class="flecha"><svg viewBox="0 0 20 20" id="flecha"><path d="M10 2l6 13-6-3.2L4 15z" fill="currentColor"/></svg></div>
+  <div class="txt"><div class="t" id="guiaT"></div><div class="s" id="guiaS"></div></div>
+  <button class="otra" id="guiaOtra" hidden>Otra vez</button>
+</div>
 
 <nav class="barra vidrio" id="barra" aria-label="Vistas">
   <button data-vista="aerea" aria-pressed="true">Aérea</button>
@@ -205,6 +222,7 @@
   <button class="caminar" id="btnCaminar" aria-pressed="false">Caminar</button>
 </nav>
 <div class="ayuda" id="ayuda"></div>
+<div class="mira"></div>
 
 <div class="palanca vidrio" id="palanca"><i></i></div>
 <div id="puntos"></div>

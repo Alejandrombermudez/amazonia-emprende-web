@@ -419,27 +419,28 @@ for (const c of D.camas) {
   scene.add(p);
 }
 
-// ───────────────────────── cifras (barra derecha) ─────────────────────────
+// ───────────────────────── cifras (en una línea, se pueden esconder) ─────────────────────────
 const fmt = (n) => n.toLocaleString('es-CO');
 const redondo = (n, a) => Math.round(n / a) * a;
 const cifras = [
   [D.naves, `naves de ${D.ancho_nave} × ${D.largo} m`],
   [`${fmt(D.naves * D.ancho_nave * D.largo)} m²`, 'bajo polisombra'],
-  [fmt(D.mesas.length), 'mesas de crecimiento'],
+  [fmt(D.mesas.length), 'mesas'],
   [D.camas.length, 'camas de germinación'],
-  [`~${fmt(redondo(bandejas.length, 50))}`, 'bandejas de alvéolos'],
-  [`~${fmt(redondo(totalPlantas, 1000))}`, 'plántulas en mesa'],
+  [`~${fmt(redondo(bandejas.length, 50))}`, 'bandejas'],
+  [`~${fmt(redondo(totalPlantas, 1000))}`, 'plántulas'],
 ];
-$('cifras').innerHTML = cifras.map(([v, k]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
+$('tira').insertAdjacentHTML('afterbegin', cifras.map(([v, k]) => `<span><b>${v}</b> ${k}</span>`).join(''));
 const angosto = () => innerWidth <= 820;
-if (angosto()) $('panel').classList.add('oculto');
-$('btnInfo').addEventListener('click', () => {
-  const oculto = $('panel').classList.toggle('oculto');
-  $('btnInfo').setAttribute('aria-expanded', String(!oculto));
-  if (!oculto) cerrarInfo();
-});
+function mostrarTira(on) {
+  $('tira').classList.toggle('oculta', !on);
+  $('btnCifras').setAttribute('aria-expanded', String(on));
+}
+mostrarTira(!angosto());
+$('btnCifras').addEventListener('click', () => mostrarTira($('tira').classList.contains('oculta')));
+$('tiraCerrar').addEventListener('click', () => mostrarTira(false));
 
-// hora con reproducción: 10 s reales por cada hora
+// ───────────────────────── hora: corre sola, 10 s por hora ─────────────────────────
 let reproduciendo = false, ultimoCuarto = -1;
 function ponerPlay(on) {
   reproduciendo = on;
@@ -458,25 +459,26 @@ function avanzarHora(dt) {
   ultimoCuarto = cuarto;
 }
 
-// ───────────────────────── puntos de información ─────────────────────────
+// ───────────────────────── puntos (en el orden del recorrido) ─────────────────────────
 const AN = D.ancho_nave, LG = D.largo;
 const xc = (n) => AN * (n - 0.5);   // centro de la nave n
+// p: dónde está el número · faro: dónde se para la baliza en el piso · cam: vista "Ver de cerca"
 const PUNTOS = [
-  { p: [xc(2), D.h_cumbre + 0.15, -LG * 0.35], t: 'Polisombra',
-    d: 'Dos capas: la malla en arco por fuera y una malla plana por dentro. Bajan la luz directa para que las plántulas no se quemen.',
-    cam: [xc(2) + 10, 9, -LG * 0.35 + 12] },
-  { p: [xc(1) + 1.2, 1.35, -8], t: 'Mesas de crecimiento',
-    d: 'Mesas metálicas a unos 80 cm del suelo con bandejas de alvéolos. La raíz queda al aire por debajo y no se enrolla.',
-    cam: [xc(1) - 0.1, 1.75, -3.2] },
-  { p: [xc(4) + 2.1, 1.3, -6], t: 'Camas de germinación',
-    d: 'Cajones de madera con sustrato donde germina la semilla. Con las primeras hojas, la plántula pasa a las bandejas.',
-    cam: [xc(4) + 0.2, 1.8, -1.2] },
-  { p: [AN + 1.0, 0.65, -1.2], t: 'Riego',
+  { p: [AN + 1.0, 0.65, -1.2], faro: [AN + 1.0, -0.9], t: 'Riego',
     d: 'Tubo PVC al pie de cada hilera, con su llave a la entrada, y manguera para regar a mano.',
-    cam: [AN + 2.6, 1.5, 1.6] },
-  { p: [8, 2.6, -(LG + 4)], t: 'Zona de trabajo',
+    pista: 'Mira hacia abajo, al pie de la mesa', cam: [AN + 2.6, 1.5, 1.6] },
+  { p: [xc(2) + 1.2, 1.35, -7], faro: [xc(2), -7], t: 'Mesas de crecimiento',
+    d: 'Mesas metálicas a unos 80 cm del suelo con bandejas de alvéolos. La raíz queda al aire por debajo y no se enrolla.',
+    pista: 'Mira las bandejas de la mesa', cam: [xc(2) - 0.1, 1.75, -2.5] },
+  { p: [xc(2), D.h_cumbre + 0.15, -13], faro: [xc(2), -13], t: 'Polisombra',
+    d: 'Dos capas: la malla en arco por fuera y una malla plana por dentro. Bajan la luz directa para que las plántulas no se quemen.',
+    pista: 'Mira hacia arriba', cam: [xc(2) + 10, 9, -1] },
+  { p: [xc(4) + 2.1, 1.3, -12], faro: [xc(4), -12], t: 'Camas de germinación',
+    d: 'Cajones de madera con sustrato donde germina la semilla. Con las primeras hojas, la plántula pasa a las bandejas.',
+    pista: 'Mira las camas de madera', cam: [xc(4) + 0.2, 1.8, -6.5] },
+  { p: [21, 2.4, -(LG + 4.5)], faro: [21, -(LG + 3)], t: 'Zona de trabajo',
     d: 'Bodegas y cobertizos detrás de las naves, junto a la casa.',
-    cam: [22, 8, -(LG - 10)] },
+    pista: 'Mira bajo el techo de lámina', cam: [34, 7, -(LG - 6)] },
 ];
 PUNTOS.forEach((pt) => { pt.v = new THREE.Vector3(...pt.p); });
 const elPuntos = PUNTOS.map((pt, i) => {
@@ -499,7 +501,6 @@ function abrirInfo(i) {
   $('info').classList.remove('cerrada'); $('info').setAttribute('aria-hidden', 'false');
   elPuntos.forEach((b, k) => b.classList.toggle('activo', k === i));
   $('indice').querySelectorAll('button').forEach((b, k) => b.setAttribute('aria-current', String(k === i)));
-  if (angosto()) { $('panel').classList.add('oculto'); $('btnInfo').setAttribute('aria-expanded', 'false'); }
 }
 function cerrarInfo() {
   puntoInfo = null;
@@ -509,22 +510,49 @@ function cerrarInfo() {
 $('infoCerrar').addEventListener('click', cerrarInfo);
 $('infoAcercar').addEventListener('click', () => {
   if (puntoInfo === null) return;
-  document.querySelectorAll('[data-vista]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+  marcarVista(null);
   volar(PUNTOS[puntoInfo].cam, PUNTOS[puntoInfo].p);
 });
 
-// pop-up del modo caminar: el número se activa al estar cerca y mirarlo
-const popup = $('popup');
+// ───────────────────────── recorrido guiado (modo caminar) ─────────────────────────
+// Se encuentran en orden. Solo se ven los ya encontrados y el siguiente cuando estás cerca.
 const vistos = new Set();
+const siguiente = () => (vistos.size < PUNTOS.length ? vistos.size : null);
+const popup = $('popup');
 let puntoCam = null;
 const CERCA = 6, CERCA_SALIR = 7.5;
 const MIRA = Math.cos(THREE.MathUtils.degToRad(22)), MIRA_SALIR = Math.cos(THREE.MathUtils.degToRad(34));
 const frente = new THREE.Vector3(), haciaPunto = new THREE.Vector3();
+
+// baliza: anillo pulsante en el piso y columna de luz
+const texColumna = tex(8, 128, (g, w, h) => {
+  const gr = g.createLinearGradient(0, h, 0, 0);
+  gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#000');
+  g.fillStyle = gr; g.fillRect(0, 0, w, h);
+}, { repetir: false, color: false });
+const faro = new THREE.Group();
+const anillo = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.58, 48),
+  new THREE.MeshBasicMaterial({ color: 0xe1a644, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthWrite: false }));
+anillo.rotation.x = -Math.PI / 2; anillo.position.y = 0.04;
+const columna = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 5, 32, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0xe1a644, alphaMap: texColumna, transparent: true, opacity: 0.45,
+    blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+columna.position.y = 2.5;
+faro.add(anillo, columna);
+faro.visible = false;
+scene.add(faro);
+function ponerFaro() {
+  const s = siguiente();
+  faro.visible = caminando && s !== null;
+  if (s !== null) faro.position.set(PUNTOS[s].faro[0], 0, PUNTOS[s].faro[1]);
+}
+
 function mirada(pt) {
   haciaPunto.copy(pt.v).sub(camera.position);
   const d = haciaPunto.length();
   return { d, dot: haciaPunto.divideScalar(d || 1).dot(frente) };
 }
+const disponible = (i) => vistos.has(i) || i === siguiente();
 function revisarCercania() {
   camera.getWorldDirection(frente);
   if (puntoCam !== null) {
@@ -533,7 +561,11 @@ function revisarCercania() {
   }
   if (puntoCam === null) {
     let mejor = null, mejorDot = MIRA;
-    PUNTOS.forEach((pt, i) => { const m = mirada(pt); if (m.d < CERCA && m.dot > mejorDot) { mejor = i; mejorDot = m.dot; } });
+    PUNTOS.forEach((pt, i) => {
+      if (!disponible(i)) return;
+      const m = mirada(pt);
+      if (m.d < CERCA && m.dot > mejorDot) { mejor = i; mejorDot = m.dot; }
+    });
     if (mejor !== null) activarPunto(mejor);
   }
 }
@@ -542,16 +574,48 @@ function activarPunto(i) {
   $('popupT').textContent = `${i + 1}. ${PUNTOS[i].t}`; $('popupP').textContent = PUNTOS[i].d;
   popup.classList.add('on');
   elPuntos.forEach((b, k) => b.classList.toggle('activo', k === i));
-  if (!vistos.has(i)) {
+  if (i === siguiente()) {
     vistos.add(i);
     elPuntos[i].classList.add('visto');
-    $('logroN').textContent = vistos.size === PUNTOS.length ? `los ${PUNTOS.length}` : `${vistos.size} de ${PUNTOS.length}`;
+    ponerFaro();
   }
 }
 function soltarPunto() {
   puntoCam = null;
   popup.classList.remove('on');
   elPuntos.forEach((b) => b.classList.remove('activo'));
+}
+$('guiaOtra').addEventListener('click', () => {
+  vistos.clear(); soltarPunto();
+  elPuntos.forEach((b) => b.classList.remove('visto'));
+  ponerFaro();
+});
+
+let guiaPrevia = '';
+function actualizarGuia(t) {
+  const s = siguiente();
+  let titulo, sub, ang = 0;
+  if (s === null) {
+    titulo = 'Recorrido completo';
+    sub = `Encontraste los ${PUNTOS.length} puntos`;
+  } else {
+    const pt = PUNTOS[s];
+    const dx = pt.faro[0] - camera.position.x, dz = pt.faro[1] - camera.position.z;
+    const y = jugador.yaw;
+    ang = Math.atan2(dx * Math.cos(y) - dz * Math.sin(y), -dx * Math.sin(y) - dz * Math.cos(y));
+    titulo = `Punto ${s + 1} de ${PUNTOS.length}: ${pt.t}`;
+    sub = camera.position.distanceTo(pt.v) < CERCA ? pt.pista : `A ${Math.max(1, Math.round(Math.hypot(dx, dz)))} m · sigue la flecha y la luz`;
+    anillo.scale.setScalar(1 + 0.18 * Math.sin(t * 3.2));
+    columna.material.opacity = 0.32 + 0.16 * Math.sin(t * 3.2);
+  }
+  $('flecha').style.transform = `rotate(${ang}rad)`;
+  const clave = titulo + sub;
+  if (clave !== guiaPrevia) {
+    guiaPrevia = clave;
+    $('guiaT').textContent = titulo; $('guiaS').textContent = sub;
+    $('guia').classList.toggle('completo', s === null);
+    $('guiaOtra').hidden = s !== null;
+  }
 }
 
 const vtmp = new THREE.Vector3();
@@ -561,8 +625,10 @@ function moverPuntos() {
   PUNTOS.forEach((pt, i) => {
     vtmp.copy(pt.v).project(camera);
     const dist = camera.position.distanceTo(pt.v);
-    const lejos = caminando ? dist > 11 : (dist > 140 || dist < 0.8);
-    const fuera = vtmp.z > 1 || Math.abs(vtmp.x) > 1.05 || Math.abs(vtmp.y) > 1.05 || lejos;
+    const visible = caminando
+      ? (vistos.has(i) ? dist < 11 : i === siguiente() && dist < CERCA)
+      : dist <= 140 && dist >= 0.8;
+    const fuera = vtmp.z > 1 || Math.abs(vtmp.x) > 1.05 || Math.abs(vtmp.y) > 1.05 || !visible;
     const el = elPuntos[i];
     el.classList.toggle('lejos', fuera);
     if (fuera) return;
@@ -570,12 +636,10 @@ function moverPuntos() {
     el.style.transform = `translate(${x}px, ${y}px)`;
     if (caminando && i === puntoCam) {
       const pw = popup.offsetWidth || 260, ph = popup.offsetHeight || 110;
-      const panel = $('panel');
-      const borde = panel.classList.contains('oculto') || angosto() ? w - 16 : panel.getBoundingClientRect().left - 12;
       let px = x + 26, origen = 'left center';
-      if (px + pw > borde) { px = x - 26 - pw; origen = 'right center'; }
+      if (px + pw > w - 16) { px = x - 26 - pw; origen = 'right center'; }
       px = Math.max(16, px);
-      const py = THREE.MathUtils.clamp(y - ph / 2, 76, Math.max(76, h - ph - 150));
+      const py = THREE.MathUtils.clamp(y - ph / 2, 130, Math.max(130, h - ph - 150));
       popup.style.left = `${px}px`; popup.style.top = `${py}px`; popup.style.transformOrigin = origen;
     }
   });
@@ -590,18 +654,20 @@ const VISTAS = {
   planta: { pos: [16, 78, -17.99], obj: [16, 0, -18] },
 };
 let anim = null;
-function irA(nombre) {
-  salirCaminar();
-  const v = VISTAS[nombre];
+function marcarVista(nombre) {
   document.querySelectorAll('[data-vista]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.vista === nombre)));
-  volar(v.pos, v.obj);
-  ayuda();
 }
 function volar(pos, obj) {
   salirCaminar();
   anim = { t0: performance.now(), dur: 1400,
     p0: camera.position.clone(), p1: new THREE.Vector3(...pos),
     o0: controls.target.clone(), o1: new THREE.Vector3(...obj) };
+}
+function irA(nombre) {
+  const v = VISTAS[nombre];
+  volar(v.pos, v.obj);
+  marcarVista(nombre);
+  ayuda();
 }
 document.querySelectorAll('[data-vista]').forEach((b) => b.addEventListener('click', () => irA(b.dataset.vista)));
 controls.addEventListener('start', () => { anim = null; });
@@ -622,7 +688,27 @@ const jugador = { pos: new THREE.Vector3(), yaw: 0, pitch: 0 };
 const teclas = new Set();
 const palanca = { x: 0, y: 0, id: null };
 const ALTURA_OJOS = 1.6, R = 0.28;
+const lienzo = renderer.domElement;
+const mouseAtrapado = () => document.pointerLockElement === lienzo;
+if (movil) document.body.classList.add('tactil');
 
+// el mouse pasa a ser la vista (pointer lock); Esc lo suelta y un clic lo vuelve a tomar
+function atraparMouse() {
+  if (movil || !caminando || mouseAtrapado() || !lienzo.requestPointerLock) return;
+  try { const r = lienzo.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (err) { /* sin pointer lock */ }
+}
+document.addEventListener('pointerlockchange', () => {
+  document.body.classList.toggle('mouse-libre', caminando && !movil && !mouseAtrapado());
+  ayuda();
+});
+document.addEventListener('mousemove', (ev) => {
+  if (!caminando || !mouseAtrapado()) return;
+  jugador.yaw -= ev.movementX * 0.0022;
+  jugador.pitch = THREE.MathUtils.clamp(jugador.pitch - ev.movementY * 0.0022, -1.35, 1.35);
+});
+lienzo.addEventListener('click', atraparMouse);
+
+let tiraAntes = false;
 function entrarCaminar() {
   caminando = true; anim = null; controls.enabled = false;
   const v = VISTAS.entrada;
@@ -631,11 +717,16 @@ function entrarCaminar() {
   const dir = dentro ? controls.target.clone().sub(camera.position) : new THREE.Vector3(v.obj[0] - xc(2), 0, -1);
   jugador.yaw = Math.atan2(-dir.x, -dir.z); jugador.pitch = dentro ? -0.12 : -0.05;
   $('btnCaminar').setAttribute('aria-pressed', 'true');
-  document.querySelectorAll('[data-vista]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+  $('btnCaminar').blur();
+  marcarVista(null);
   $('palanca').classList.toggle('on', movil);
   cerrarInfo();
+  tiraAntes = !$('tira').classList.contains('oculta');
   document.body.classList.add('caminando');
-  $('logro').hidden = false;
+  $('guia').hidden = false;
+  guiaPrevia = '';
+  ponerFaro();
+  atraparMouse();
   ayuda();
 }
 function salirCaminar() {
@@ -645,48 +736,50 @@ function salirCaminar() {
   controls.target.copy(camera.position).addScaledVector(f, 3).setY(1.2);
   $('btnCaminar').setAttribute('aria-pressed', 'false');
   $('palanca').classList.remove('on');
+  if (mouseAtrapado()) document.exitPointerLock();
   soltarPunto();
-  document.body.classList.remove('caminando');
-  $('logro').hidden = true;
+  document.body.classList.remove('caminando', 'mouse-libre');
+  $('guia').hidden = true;
+  faro.visible = false;
+  mostrarTira(tiraAntes);
   ayuda();
 }
 $('btnCaminar').addEventListener('click', () => (caminando ? salirCaminar() : entrarCaminar()));
-addEventListener('keydown', (e) => {
-  if (e.target.closest?.('input')) return;
-  teclas.add(e.key.toLowerCase());
-  if (caminando && e.key.startsWith('Arrow')) e.preventDefault();
+addEventListener('keydown', (ev) => {
+  if (ev.target.closest?.('input')) return;
+  teclas.add(ev.key.toLowerCase());
+  if (caminando && (ev.key.startsWith('Arrow') || ev.key === ' ')) ev.preventDefault();
 });
-addEventListener('keyup', (e) => teclas.delete(e.key.toLowerCase()));
+addEventListener('keyup', (ev) => teclas.delete(ev.key.toLowerCase()));
 addEventListener('blur', () => teclas.clear());
 
-// mirar arrastrando
+// en celular (o si el navegador no deja tomar el mouse) se mira arrastrando
 let arrastre = null;
-renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (!caminando) return;
-  arrastre = { id: e.pointerId, x: e.clientX, y: e.clientY };
-  renderer.domElement.setPointerCapture(e.pointerId);
+lienzo.addEventListener('pointerdown', (ev) => {
+  if (!caminando || mouseAtrapado()) return;
+  arrastre = { id: ev.pointerId, x: ev.clientX, y: ev.clientY };
 });
-renderer.domElement.addEventListener('pointermove', (e) => {
-  if (!caminando || !arrastre || arrastre.id !== e.pointerId) return;
+lienzo.addEventListener('pointermove', (ev) => {
+  if (!caminando || mouseAtrapado() || !arrastre || arrastre.id !== ev.pointerId) return;
   const k = movil ? 0.006 : 0.004;
-  jugador.yaw -= (e.clientX - arrastre.x) * k;
-  jugador.pitch = THREE.MathUtils.clamp(jugador.pitch - (e.clientY - arrastre.y) * k, -1.3, 1.3);
-  arrastre.x = e.clientX; arrastre.y = e.clientY;
+  jugador.yaw -= (ev.clientX - arrastre.x) * k;
+  jugador.pitch = THREE.MathUtils.clamp(jugador.pitch - (ev.clientY - arrastre.y) * k, -1.3, 1.3);
+  arrastre.x = ev.clientX; arrastre.y = ev.clientY;
 });
-renderer.domElement.addEventListener('pointerup', () => { arrastre = null; });
-renderer.domElement.addEventListener('pointercancel', () => { arrastre = null; });
+lienzo.addEventListener('pointerup', () => { arrastre = null; });
+lienzo.addEventListener('pointercancel', () => { arrastre = null; });
 
 // palanca táctil
 const elP = $('palanca'), bolita = elP.querySelector('i');
-function moverPalanca(e) {
+function moverPalanca(ev) {
   const r = elP.getBoundingClientRect();
-  let x = (e.clientX - r.left - r.width / 2) / (r.width / 2), y = (e.clientY - r.top - r.height / 2) / (r.height / 2);
+  let x = (ev.clientX - r.left - r.width / 2) / (r.width / 2), y = (ev.clientY - r.top - r.height / 2) / (r.height / 2);
   const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
   palanca.x = x; palanca.y = y;
   bolita.style.transform = `translate(${x * 33}px, ${y * 33}px)`;
 }
-elP.addEventListener('pointerdown', (e) => { palanca.id = e.pointerId; elP.setPointerCapture(e.pointerId); moverPalanca(e); });
-elP.addEventListener('pointermove', (e) => { if (palanca.id === e.pointerId) moverPalanca(e); });
+elP.addEventListener('pointerdown', (ev) => { palanca.id = ev.pointerId; elP.setPointerCapture(ev.pointerId); moverPalanca(ev); });
+elP.addEventListener('pointermove', (ev) => { if (palanca.id === ev.pointerId) moverPalanca(ev); });
 const soltar = () => { palanca.id = null; palanca.x = palanca.y = 0; bolita.style.transform = ''; };
 elP.addEventListener('pointerup', soltar); elP.addEventListener('pointercancel', soltar);
 
@@ -718,9 +811,12 @@ function pasoCaminar(dt) {
 }
 
 function ayuda() {
-  $('ayuda').textContent = caminando
-    ? (movil ? 'Mueve el círculo · acércate a los números y míralos' : 'W A S D o flechas para caminar · Shift corre · arrastra para mirar · acércate a los números y míralos')
-    : (movil ? 'Un dedo gira · dos dedos acercan y mueven · toca los números' : 'Arrastra para girar · rueda para acercar · clic derecho para mover · clic en los números');
+  let txt;
+  if (!caminando) txt = movil ? 'Un dedo gira · dos dedos acercan y mueven · toca los números' : 'Arrastra para girar · rueda para acercar · clic derecho para mover · clic en los números';
+  else if (movil) txt = 'Mueve el círculo para caminar · arrastra para mirar';
+  else if (mouseAtrapado()) txt = 'Mueve el mouse para mirar · W A S D para caminar · Shift corre · Esc suelta el mouse';
+  else txt = 'Haz clic en la escena para mirar con el mouse';
+  $('ayuda').textContent = txt;
 }
 
 // ───────────────────────── ciclo ─────────────────────────
@@ -733,8 +829,10 @@ const reloj = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   const dt = Math.min(0.05, reloj.getDelta());
   if (reproduciendo) avanzarHora(dt);
-  if (caminando) pasoCaminar(dt);
-  else {
+  if (caminando) {
+    pasoCaminar(dt);
+    actualizarGuia(reloj.elapsedTime);
+  } else {
     if (anim) {
       const t = Math.min(1, (performance.now() - anim.t0) / anim.dur), s = suave(t);
       camera.position.lerpVectors(anim.p0, anim.p1, s);
@@ -747,8 +845,10 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
 });
 
-ponerHora(+$('hora').value);
+ponerHora(horaActual);
+ponerPlay(true);
 ayuda();
 progreso(1);
 setTimeout(() => { carga.classList.add('fin'); setTimeout(() => carga.remove(), 700); }, 60);
-window.__vivero = { scene, camera, controls, irA, D, totalPlantas, bandejas: bandejas.length, pasoCaminar, teclas, jugador, avanzarHora, moverPuntos, PUNTOS, ponerPlay };
+window.__vivero = { scene, camera, controls, irA, D, totalPlantas, bandejas: bandejas.length, pasoCaminar, teclas, jugador,
+  avanzarHora, moverPuntos, actualizarGuia, PUNTOS, ponerPlay, vistos };
